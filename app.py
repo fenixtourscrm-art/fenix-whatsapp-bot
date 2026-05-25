@@ -5,8 +5,7 @@ import os
 
 app = Flask(__name__)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 SYSTEM_PROMPT = """You are a helpful travel assistant for Fenix Tours & Travels Pvt Ltd, a travel agency based in India.
 
@@ -39,16 +38,28 @@ def webhook():
     print(f"Message from {sender}: {incoming_msg}")
 
     try:
-        payload = {
-            "contents": [{
-                "parts": [{"text": f"{SYSTEM_PROMPT}\n\nCustomer message: {incoming_msg}"}]
-            }]
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
         }
-        response = requests.post(GEMINI_URL, json=payload, timeout=15)
+        payload = {
+            "model": "llama3-8b-8192",
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": incoming_msg}
+            ],
+            "max_tokens": 300
+        }
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
         data = response.json()
-        reply = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        reply = data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        print(f"Gemini error: {e}")
+        print(f"Groq error: {e}")
         reply = "Namaste! Fenix Tours mein aapka swagat hai. Abhi thodi technical dikkat hai, please thodi der baad try karein. 🙏"
 
     resp = MessagingResponse()
