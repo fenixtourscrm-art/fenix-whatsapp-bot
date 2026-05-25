@@ -1,13 +1,12 @@
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
-import google.generativeai as genai
+import requests
 import os
 
 app = Flask(__name__)
 
-# Configure Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 SYSTEM_PROMPT = """You are a helpful travel assistant for Fenix Tours & Travels Pvt Ltd, a travel agency based in India.
 
@@ -15,7 +14,6 @@ Your job is to:
 - Answer travel related queries
 - Help customers with tour packages (Kashmir, Rajasthan, Kerala, Goa, international tours)
 - Collect lead information (name, number, travel dates, destination, budget)
-- Be friendly and professional
 - Reply in the same language the customer uses (Hindi or English or Hinglish)
 - Keep replies short and conversational (WhatsApp style)
 
@@ -32,24 +30,26 @@ Company info:
 - Name: Fenix Tours & Travels Pvt Ltd
 - Speciality: Domestic & International Tours
 - Popular packages: Kashmir, Rajasthan, Kerala, Dubai, Thailand
-- Contact: Our team will reach out after collecting details
 """
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     incoming_msg = request.form.get("Body", "").strip()
     sender = request.form.get("From", "")
-
     print(f"Message from {sender}: {incoming_msg}")
 
     try:
-        response = model.generate_content(
-            f"{SYSTEM_PROMPT}\n\nCustomer message: {incoming_msg}"
-        )
-        reply = response.text.strip()
+        payload = {
+            "contents": [{
+                "parts": [{"text": f"{SYSTEM_PROMPT}\n\nCustomer message: {incoming_msg}"}]
+            }]
+        }
+        response = requests.post(GEMINI_URL, json=payload, timeout=15)
+        data = response.json()
+        reply = data["candidates"][0]["content"]["parts"][0]["text"].strip()
     except Exception as e:
         print(f"Gemini error: {e}")
-        reply = "Namaste! Fenix Tours mein aapka swagat hai. Abhi hum thodi technical dikkat face kar rahe hain. Please thodi der baad try karein. 🙏"
+        reply = "Namaste! Fenix Tours mein aapka swagat hai. Abhi thodi technical dikkat hai, please thodi der baad try karein. 🙏"
 
     resp = MessagingResponse()
     resp.message(reply)
