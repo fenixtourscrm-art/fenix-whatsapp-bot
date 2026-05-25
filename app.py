@@ -5,37 +5,19 @@ import os
 
 app = Flask(__name__)
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 
 SYSTEM_PROMPT = """You are a helpful travel assistant for Fenix Tours & Travels Pvt Ltd, a travel agency based in India.
-
-Your job is to:
-- Answer travel related queries
-- Help customers with tour packages (Kashmir, Rajasthan, Kerala, Goa, international tours)
-- Collect lead information (name, number, travel dates, destination, budget)
-- Reply in the same language the customer uses (Hindi or English or Hinglish)
-- Keep replies short and conversational (WhatsApp style)
-
-If someone asks for a quote or booking, ask for:
-1. Their name
-2. Destination they want to visit
-3. Travel dates
-4. Number of people
-5. Budget
-
-Then say our team will call them shortly.
-
-Company info:
-- Name: Fenix Tours & Travels Pvt Ltd
-- Speciality: Domestic & International Tours
-- Popular packages: Kashmir, Rajasthan, Kerala, Dubai, Thailand
-"""
+Reply in the same language the customer uses (Hindi, English or Hinglish).
+Keep replies short and conversational (WhatsApp style).
+Help with tour packages: Kashmir, Rajasthan, Kerala, Goa, Dubai, Thailand.
+If someone wants booking, collect: name, destination, travel dates, number of people, budget. Then say team will call shortly."""
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     incoming_msg = request.form.get("Body", "").strip()
     sender = request.form.get("From", "")
-    print(f"Message from {sender}: {incoming_msg}")
+    print(f"MSG: {incoming_msg} | KEY EXISTS: {bool(GROQ_API_KEY)}")
 
     try:
         headers = {
@@ -54,13 +36,15 @@ def webhook():
             "https://api.groq.com/openai/v1/chat/completions",
             headers=headers,
             json=payload,
-            timeout=15
+            timeout=20
         )
+        print(f"GROQ STATUS: {response.status_code}")
+        print(f"GROQ RESPONSE: {response.text[:300]}")
         data = response.json()
         reply = data["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        print(f"Groq error: {e}")
-        reply = "Namaste! Fenix Tours mein aapka swagat hai. Abhi thodi technical dikkat hai, please thodi der baad try karein. 🙏"
+        print(f"ERROR: {e}")
+        reply = f"Debug: {str(e)[:100]}"
 
     resp = MessagingResponse()
     resp.message(reply)
@@ -68,7 +52,8 @@ def webhook():
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Fenix Tours WhatsApp Bot is running! ✅"
+    key_status = "SET" if GROQ_API_KEY else "MISSING"
+    return f"Fenix Tours Bot running ✅ | GROQ_API_KEY: {key_status}"
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
