@@ -17,7 +17,6 @@ If someone wants booking, collect: name, destination, travel dates, number of pe
 def webhook():
     incoming_msg = request.form.get("Body", "").strip()
     sender = request.form.get("From", "")
-    print(f"MSG: {incoming_msg} | KEY EXISTS: {bool(GROQ_API_KEY)}")
 
     try:
         headers = {
@@ -38,13 +37,16 @@ def webhook():
             json=payload,
             timeout=20
         )
-        print(f"GROQ STATUS: {response.status_code}")
-        print(f"GROQ RESPONSE: {response.text[:300]}")
         data = response.json()
-        reply = data["choices"][0]["message"]["content"].strip()
+
+        # Show full error if something goes wrong
+        if "choices" not in data:
+            reply = f"API Error: {data.get('error', {}).get('message', str(data)[:150])}"
+        else:
+            reply = data["choices"][0]["message"]["content"].strip()
+
     except Exception as e:
-        print(f"ERROR: {e}")
-        reply = f"Debug: {str(e)[:100]}"
+        reply = f"Exception: {str(e)[:150]}"
 
     resp = MessagingResponse()
     resp.message(reply)
@@ -52,7 +54,7 @@ def webhook():
 
 @app.route("/", methods=["GET"])
 def home():
-    key_status = "SET" if GROQ_API_KEY else "MISSING"
+    key_status = f"SET ({GROQ_API_KEY[:8]}...)" if GROQ_API_KEY else "MISSING"
     return f"Fenix Tours Bot running ✅ | GROQ_API_KEY: {key_status}"
 
 if __name__ == "__main__":
